@@ -71,7 +71,7 @@ const tourScript = ref([
         lon: 4.5, lat: 43.5, alt: 5000000, heading: 0, pitch: -90, roll: 0,
         duration: 3, pause: 2,
         label: 'Welcome to Globe Tour',
-        sourceLabel: 'Copernicus Sentinel-2', 
+        sourceLabel: 'Copernicus data - EOPF Sentinels Explorer', 
         sourceLink: 'https://explorer.eopf.copernicus.eu/',
         layer: { serviceId: '456c1e23-47f2-4567-98cf-dcde378a05f7', timeStart: today, timeEnd: today, cloudCover: 40 }
     },
@@ -80,7 +80,7 @@ const tourScript = ref([
     },
     {
         lon: 6.8652, lat: 45.7, alt: 40000, heading: 0, pitch: -60, roll: 0, duration: 4, pause: 3, label: 'Approaching Mont Blanc',
-        sourceLabel: "Copernicus data at EOPF Explorer", sourceLink: "https://explorer.eopf.copernicus.eu/",
+        sourceLabel: "Copernicus data - EOPF Sentinels Explorer", sourceLink: "https://explorer.eopf.copernicus.eu/",
         waitForTiles: true,
         layer: { serviceId: '456c1e23-47f2-4567-98cf-dcde378a05f7', timeStart: daysAgo(10), timeEnd: today, cloudCover: 40 }
     },
