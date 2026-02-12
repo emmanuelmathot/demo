@@ -3,6 +3,7 @@ import vue from '@vitejs/plugin-vue'
 import { viteStaticCopy } from 'vite-plugin-static-copy'
 
 export default defineConfig({
+  base: process.env.VITE_BASE_URL || '/',
   plugins: [
     vue(),
     viteStaticCopy({
@@ -33,15 +34,13 @@ export default defineConfig({
       'xml-utils',
       'geotiff',
       'quick-lru'
-    ],
-    exclude: ['olcs']
+    ]
   },
   build: {
     rollupOptions: {
       output: {
         manualChunks: (id) => {
           if (id.includes('cesium')) return 'cesium'
-          if (id.includes('olcs')) return 'olcs'
         }
       }
     }

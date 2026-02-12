@@ -3,6 +3,9 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+    paths:
+      - 'globe-tour/**'
+      - '.github/workflows/deploy.yml'
   workflow_dispatch:
 
 permissions:
@@ -39,6 +42,7 @@ jobs:
         working-directory: globe-tour
         env:
           VITE_CESIUM_ION_TOKEN: ${{ secrets.VITE_CESIUM_ION_TOKEN }}
+          VITE_BASE_URL: /${{ github.event.repository.name }}/
         run: npm run build
 
       - name: Upload artifact
