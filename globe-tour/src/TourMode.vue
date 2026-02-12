@@ -17,6 +17,10 @@
         <div class="tour-overlay">
             <div class="tour-info">
                 <div v-if="currentStepLabel" class="tour-label">{{ currentStepLabel }}</div>
+                <a v-if="currentSourceLink" :href="currentSourceLink" target="_blank" rel="noopener noreferrer" class="tour-attribution">
+                    {{ currentSourceLabel }}
+                </a>
+                <span v-else-if="currentSourceLabel" class="tour-attribution">{{ currentSourceLabel }}</span>
                 <span class="tour-step-counter">{{ currentTourStep + 1 }} / {{ tourScript.length }}</span>
             </div>
         </div>
@@ -61,11 +65,14 @@ let currentXyzLayer = null
 // Each step can optionally include layer parameters to change the imagery
 // duration = fly-to animation time (seconds), pause = time to stay at scene (seconds)
 // waitForTiles = wait for all imagery tiles to load before continuing (default: false)
+// sourceLabel = attribution text, sourceLink = clickable URL for attribution
 const tourScript = ref([
     {
         lon: 4.5, lat: 43.5, alt: 5000000, heading: 0, pitch: -90, roll: 0,
         duration: 3, pause: 2,
         label: 'Welcome to Globe Tour',
+        sourceLabel: 'Copernicus Sentinel-2', 
+        sourceLink: 'https://explorer.eopf.copernicus.eu/',
         layer: { serviceId: '456c1e23-47f2-4567-98cf-dcde378a05f7', timeStart: today, timeEnd: today, cloudCover: 40 }
     },
     {
@@ -73,6 +80,7 @@ const tourScript = ref([
     },
     {
         lon: 6.8652, lat: 45.7, alt: 40000, heading: 0, pitch: -60, roll: 0, duration: 4, pause: 3, label: 'Approaching Mont Blanc',
+        sourceLabel: "Copernicus data at EOPF Explorer", sourceLink: "https://explorer.eopf.copernicus.eu/",
         waitForTiles: true,
         layer: { serviceId: '456c1e23-47f2-4567-98cf-dcde378a05f7', timeStart: daysAgo(10), timeEnd: today, cloudCover: 40 }
     },
@@ -96,6 +104,29 @@ const currentStepLabel = computed(() => {
     const step = tourScript.value[currentTourStep.value]
     return step?.label || ''
 })
+
+// Find the most recent sourceLabel (sticky - persists until changed)
+const currentSourceLabel = computed(() => {
+    for (let i = currentTourStep.value; i >= 0; i--) {
+        const step = tourScript.value[i]
+        if (step?.sourceLabel !== undefined) {
+            return step.sourceLabel
+        }
+    }
+    return ''
+})
+
+// Find the most recent sourceLink (sticky - persists until changed)
+const currentSourceLink = computed(() => {
+    for (let i = currentTourStep.value; i >= 0; i--) {
+        const step = tourScript.value[i]
+        if (step?.sourceLink !== undefined) {
+            return step.sourceLink
+        }
+    }
+    return ''
+})
+
 // Track current layer params to detect changes
 let currentLayerParams = null
 
@@ -419,6 +450,7 @@ onUnmounted(() => {
     border-radius: 20px;
     font-size: 14px;
     backdrop-filter: blur(10px);
+    pointer-events: auto;
     text-align: center;
     min-width: 200px;
 }
@@ -427,6 +459,21 @@ onUnmounted(() => {
     font-size: 18px;
     font-weight: 600;
     margin-bottom: 4px;
+}
+
+.tour-attribution {
+    display: block;
+    font-size: 12px;
+    opacity: 0.8;
+    margin-bottom: 6px;
+    color: #88ccff;
+    text-decoration: none;
+    pointer-events: auto;
+}
+
+.tour-attribution:hover {
+    opacity: 1;
+    text-decoration: underline;
 }
 
 .tour-step-counter {
