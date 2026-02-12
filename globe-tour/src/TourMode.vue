@@ -18,11 +18,18 @@ import { ref, computed, onMounted, nextTick, onUnmounted } from 'vue'
 // Configuration
 const openeoBaseUrl = 'https://api.explorer.eopf.copernicus.eu/openeo/services/xyz'
 
+// Time helper functions
+const formatDate = (date) => date.toISOString().split('T')[0]
+const today = formatDate(new Date())
+const yesterday = formatDate(new Date(Date.now() - 24 * 60 * 60 * 1000))
+const daysAgo = (n) => formatDate(new Date(Date.now() - n * 24 * 60 * 60 * 1000))
+const daysFromNow = (n) => formatDate(new Date(Date.now() + n * 24 * 60 * 60 * 1000))
+
 // Default layer parameters (can be overridden per step)
 const defaultLayerParams = {
     serviceId: '456c1e23-47f2-4567-98cf-dcde378a05f7',
-    timeStart: '2026-01-22',
-    timeEnd: '2026-01-23',
+    timeStart: yesterday,
+    timeEnd: today,
     cloudCover: null,
     additionalParams: ''
 }
@@ -43,11 +50,24 @@ let currentXyzLayer = null
 const tourScript = ref([
     {
         lon: 4.5, lat: 43.5, alt: 5000000, heading: 0, pitch: -90, roll: 0, 
-        duration: 3, pause: 5,
+        duration: 3, pause: 2,
         label: 'Welcome to Globe Tour',
-        layer: { serviceId: '456c1e23-47f2-4567-98cf-dcde378a05f7', timeStart: '2026-01-22', timeEnd: '2026-01-23' }
+        layer: { serviceId: '456c1e23-47f2-4567-98cf-dcde378a05f7', timeStart: yesterday, timeEnd: today }
     },
-    { lon: 6.8, lat: 45.8, alt: 500000, heading: 0, pitch: -45, roll: 0, duration: 4, pause: 3, label: 'The Alps' },
+    { lon: 6.8652, lat: 45.7, alt: 40000, heading: 0, pitch: -60, roll: 0, duration: 4, pause: 3, label: 'Approaching Mont Blanc',
+        layer: { serviceId: '456c1e23-47f2-4567-98cf-dcde378a05f7', timeStart: daysAgo(7), timeEnd: today, cloudCover: 20 }
+    },
+    // Mont Blanc orbit - helicopter flight circling the summit (4808m)
+    // Summit coords: 6.8652°E, 45.8326°N - orbiting at ~10km distance, ~8000m altitude
+    { lon: 6.8652, lat: 45.745, alt: 8000, heading: 0, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - South - Sentinel-2 cloud free mosaic - Last 7 days' },
+    { lon: 6.78, lat: 45.77, alt: 8000, heading: 45, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - Southwest - Sentinel-2 cloud free mosaic - Last 7 days' },
+    { lon: 6.75, lat: 45.8326, alt: 8000, heading: 90, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - West - Sentinel-2 cloud free mosaic - Last 7 days' },
+    { lon: 6.78, lat: 45.895, alt: 8000, heading: 135, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - Northwest - Sentinel-2 cloud free mosaic - Last 7 days' },
+    { lon: 6.8652, lat: 45.92, alt: 8000, heading: 180, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - North - Sentinel-2 cloud free mosaic - Last 7 days' },
+    { lon: 6.95, lat: 45.895, alt: 8000, heading: 225, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - Northeast - Sentinel-2 cloud free mosaic - Last 7 days' },
+    { lon: 6.98, lat: 45.8326, alt: 8000, heading: 270, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - East - Sentinel-2 cloud free mosaic - Last 7 days' },
+    { lon: 6.95, lat: 45.77, alt: 8000, heading: 315, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - Southeast - Sentinel-2 cloud free mosaic - Last 7 days' },
+    { lon: 6.8652, lat: 45.92, alt: 8000, heading: 0, pitch: -17, roll: 0, duration: 5, pause: 3, label: 'Mont Blanc - South - Sentinel-2 cloud free mosaic - Last 7 days' },
     { lon: 11.25, lat: 43.77, alt: 100000, heading: 0, pitch: -30, roll: 0, duration: 3, pause: 3, label: 'Florence, Italy' },
     { lon: 12.49, lat: 41.89, alt: 50000, heading: 45, pitch: -30, roll: 0, duration: 3, pause: 3, label: 'Rome, Italy' },
     { lon: 14.26, lat: 40.85, alt: 30000, heading: 0, pitch: -45, roll: 0, duration: 3, pause: 3, label: 'Naples, Italy' },
@@ -175,7 +195,19 @@ async function initializeMap() {
         selectionIndicator: false,
         // Disable user interaction for tour mode
         scene3DOnly: true,
+        // Disable default base layer - we'll add dark OSM
+        baseLayer: false,
     })
+
+    // Add dark OSM base layer (CartoDB Dark Matter)
+    const darkOsmProvider = new Cesium.UrlTemplateImageryProvider({
+        url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+        subdomains: ['a', 'b', 'c', 'd'],
+        minimumLevel: 0,
+        maximumLevel: 18,
+        credit: '© OpenStreetMap contributors, © CARTO'
+    })
+    cesiumViewer.imageryLayers.addImageryProvider(darkOsmProvider)
 
     // Disable default camera controls for pure tour experience
     cesiumViewer.scene.screenSpaceCameraController.enableRotate = false
@@ -229,6 +261,7 @@ function executeTourStep() {
             roll: Cesium.Math.toRadians(step.roll || 0),
         },
         duration: step.duration || 3,
+        easingFunction: Cesium.EasingFunction.LINEAR_NONE,
         complete: () => {
             if (isDestroyed) return
 
