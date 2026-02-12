@@ -74,14 +74,12 @@ const tourScript = ref([
     {
         lon: 6.8652, lat: 45.7, alt: 40000, heading: 0, pitch: -60, roll: 0, duration: 4, pause: 3, label: 'Approaching Mont Blanc',
         waitForTiles: true,
-        layer: { serviceId: '456c1e23-47f2-4567-98cf-dcde378a05f7', timeStart: daysAgo(7), timeEnd: today, cloudCover: 40 }
+        layer: { serviceId: '456c1e23-47f2-4567-98cf-dcde378a05f7', timeStart: daysAgo(10), timeEnd: today, cloudCover: 40 }
     },
     // Mont Blanc orbit - helicopter flight circling the summit (4808m)
     // Summit coords: 6.8652°E, 45.8326°N - orbiting at ~10km distance, ~8000m altitude
     {
         lon: 6.8652, lat: 45.745, alt: 8000, heading: 0, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - South - Sentinel-2 cloud free mosaic - Last 7 days',
-
-        layer: { serviceId: '456c1e23-47f2-4567-98cf-dcde378a05f7', timeStart: daysAgo(7), timeEnd: today, cloudCover: 40 }
     },
     { lon: 6.78, lat: 45.77, alt: 8000, heading: 45, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - Southwest - Sentinel-2 cloud free mosaic - Last 7 days' },
     { lon: 6.75, lat: 45.8326, alt: 8000, heading: 90, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - West - Sentinel-2 cloud free mosaic - Last 7 days' },
@@ -252,12 +250,31 @@ function startTour() {
     executeTourStep()
 }
 
-// Wait for all tiles to be loaded
+// Wait for imagery layer tiles to be loaded using network activity monitoring
 function waitForTilesLoaded(timeout = 30000) {
     return new Promise((resolve) => {
         const startTime = Date.now()
+        
+        let stableFrames = 0
+        const requiredStableFrames = 6
+        let lastResourceCount = 0
+        
+        // Show loading bar immediately
         isLoadingTiles.value = true
         tileLoadProgress.value = 0
+        
+        // Get current count of resources loaded
+        const getResourceCount = () => {
+            try {
+                const entries = performance.getEntriesByType('resource')
+                // Count only XYZ tile requests
+                return entries.filter(e => e.name.includes('/tiles/')).length
+            } catch (e) {
+                return 0
+            }
+        }
+        
+        const initialResourceCount = getResourceCount()
 
         const checkTiles = () => {
             if (isDestroyed) {
@@ -266,60 +283,47 @@ function waitForTilesLoaded(timeout = 30000) {
                 return
             }
 
-            // Check if globe tiles are loaded
-            const globe = cesiumViewer.scene.globe
-            const tilesLoaded = globe.tilesLoaded
-
-            // Calculate progress based on time elapsed (as a fallback)
             const elapsed = Date.now() - startTime
-            const timeProgress = Math.min((elapsed / timeout) * 100, 95)
-
-            // Check imagery layer loading progress
-            const imageryLayers = cesiumViewer.imageryLayers
-            let loadedLayers = 0
-            let totalLayers = 0
-            for (let i = 0; i < imageryLayers.length; i++) {
-                const layer = imageryLayers.get(i)
-                if (layer.imageryProvider) {
-                    totalLayers++
-                    if (layer.imageryProvider.ready !== false) {
-                        loadedLayers++
-                    }
-                }
-            }
-
-            // Combine globe and imagery progress
-            let progress = timeProgress
-            if (totalLayers > 0) {
-                const layerProgress = (loadedLayers / totalLayers) * 50
-                const globeProgress = tilesLoaded ? 50 : Math.min(timeProgress / 2, 45)
-                progress = Math.max(layerProgress + globeProgress, timeProgress)
+            const currentResourceCount = getResourceCount()
+            const newResources = currentResourceCount - initialResourceCount
+            
+            // Resources stable if count hasn't changed since last check
+            const resourcesStable = currentResourceCount === lastResourceCount
+            
+            console.log(`Tiles check: newResources=${newResources}, stable=${resourcesStable}, stableFrames=${stableFrames}, elapsed=${elapsed}ms`)
+            
+            if (resourcesStable && elapsed > 300) {
+                stableFrames++
+            } else if (!resourcesStable) {
+                stableFrames = 0
             }
             
-            tileLoadProgress.value = Math.min(progress, 99)
+            lastResourceCount = currentResourceCount
+            
+            // Update progress bar
+            const progress = Math.min((stableFrames / requiredStableFrames) * 100, 99)
+            tileLoadProgress.value = Math.max(progress, Math.min((elapsed / 2000) * 80, 80))
 
-            const allImageryLoaded = totalLayers === 0 || loadedLayers === totalLayers
-
-            if (tilesLoaded && allImageryLoaded) {
+            // Done conditions
+            if (stableFrames >= requiredStableFrames) {
+                console.log(`Imagery tiles loaded: ${newResources} tiles in ${elapsed}ms`)
                 tileLoadProgress.value = 100
-                // Give a small buffer for rendering
                 setTimeout(() => {
                     isLoadingTiles.value = false
                     resolve()
-                }, 200)
-            } else if (Date.now() - startTime > timeout) {
-                // Timeout - continue anyway
+                }, 100)
+            } else if (elapsed > timeout) {
                 console.log('Tile loading timeout, continuing...')
                 tileLoadProgress.value = 100
                 isLoadingTiles.value = false
                 resolve()
             } else {
-                // Check again in 100ms
                 setTimeout(checkTiles, 100)
             }
         }
 
-        checkTiles()
+        // Start checking after brief delay
+        setTimeout(checkTiles, 100)
     })
 }
 
