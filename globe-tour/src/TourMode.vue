@@ -49,17 +49,25 @@ let currentXyzLayer = null
 // duration = fly-to animation time (seconds), pause = time to stay at scene (seconds)
 const tourScript = ref([
     {
-        lon: 4.5, lat: 43.5, alt: 5000000, heading: 0, pitch: -90, roll: 0, 
+        lon: 4.5, lat: 43.5, alt: 5000000, heading: 0, pitch: -90, roll: 0,
         duration: 3, pause: 2,
         label: 'Welcome to Globe Tour',
-        layer: { serviceId: '456c1e23-47f2-4567-98cf-dcde378a05f7', timeStart: yesterday, timeEnd: today }
+        layer: { serviceId: '456c1e23-47f2-4567-98cf-dcde378a05f7', timeStart: today, timeEnd: today, cloudCover: 40 }
     },
-    { lon: 6.8652, lat: 45.7, alt: 40000, heading: 0, pitch: -60, roll: 0, duration: 4, pause: 3, label: 'Approaching Mont Blanc',
-        layer: { serviceId: '456c1e23-47f2-4567-98cf-dcde378a05f7', timeStart: daysAgo(7), timeEnd: today, cloudCover: 20 }
+    {
+        lon: 6.8652, lat: 45.7, alt: 40000, heading: 0, pitch: -60, roll: 0, duration: 4, pause: 3, label: 'Approaching Mont Blanc',
+    },
+    {
+        lon: 6.8652, lat: 45.7, alt: 40000, heading: 0, pitch: -60, roll: 0, duration: 4, pause: 3, label: 'Approaching Mont Blanc',
+        layer: { serviceId: '456c1e23-47f2-4567-98cf-dcde378a05f7', timeStart: daysAgo(7), timeEnd: today, cloudCover: 40 }
     },
     // Mont Blanc orbit - helicopter flight circling the summit (4808m)
     // Summit coords: 6.8652°E, 45.8326°N - orbiting at ~10km distance, ~8000m altitude
-    { lon: 6.8652, lat: 45.745, alt: 8000, heading: 0, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - South - Sentinel-2 cloud free mosaic - Last 7 days' },
+    {
+        lon: 6.8652, lat: 45.745, alt: 8000, heading: 0, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - South - Sentinel-2 cloud free mosaic - Last 7 days',
+
+        layer: { serviceId: '456c1e23-47f2-4567-98cf-dcde378a05f7', timeStart: daysAgo(7), timeEnd: today, cloudCover: 40 }
+    },
     { lon: 6.78, lat: 45.77, alt: 8000, heading: 45, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - Southwest - Sentinel-2 cloud free mosaic - Last 7 days' },
     { lon: 6.75, lat: 45.8326, alt: 8000, heading: 90, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - West - Sentinel-2 cloud free mosaic - Last 7 days' },
     { lon: 6.78, lat: 45.895, alt: 8000, heading: 135, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - Northwest - Sentinel-2 cloud free mosaic - Last 7 days' },
@@ -67,19 +75,7 @@ const tourScript = ref([
     { lon: 6.95, lat: 45.895, alt: 8000, heading: 225, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - Northeast - Sentinel-2 cloud free mosaic - Last 7 days' },
     { lon: 6.98, lat: 45.8326, alt: 8000, heading: 270, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - East - Sentinel-2 cloud free mosaic - Last 7 days' },
     { lon: 6.95, lat: 45.77, alt: 8000, heading: 315, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - Southeast - Sentinel-2 cloud free mosaic - Last 7 days' },
-    { lon: 6.8652, lat: 45.92, alt: 8000, heading: 0, pitch: -17, roll: 0, duration: 5, pause: 3, label: 'Mont Blanc - South - Sentinel-2 cloud free mosaic - Last 7 days' },
-    { lon: 11.25, lat: 43.77, alt: 100000, heading: 0, pitch: -30, roll: 0, duration: 3, pause: 3, label: 'Florence, Italy' },
-    { lon: 12.49, lat: 41.89, alt: 50000, heading: 45, pitch: -30, roll: 0, duration: 3, pause: 3, label: 'Rome, Italy' },
-    { lon: 14.26, lat: 40.85, alt: 30000, heading: 0, pitch: -45, roll: 0, duration: 3, pause: 3, label: 'Naples, Italy' },
-    { lon: 23.73, lat: 37.98, alt: 80000, heading: -30, pitch: -30, roll: 0, duration: 4, pause: 3, label: 'Athens, Greece' },
-    { lon: 28.98, lat: 41.01, alt: 50000, heading: 0, pitch: -45, roll: 0, duration: 3, pause: 3, label: 'Istanbul, Turkey' },
-    { lon: 35.21, lat: 31.78, alt: 100000, heading: 0, pitch: -30, roll: 0, duration: 4, pause: 3, label: 'Jerusalem' },
-    { lon: 55.27, lat: 25.2, alt: 50000, heading: 90, pitch: -30, roll: 0, duration: 4, pause: 3, label: 'Dubai, UAE' },
-    { lon: 77.21, lat: 28.61, alt: 80000, heading: 0, pitch: -45, roll: 0, duration: 4, pause: 3, label: 'New Delhi, India' },
-    { lon: 100.5, lat: 13.75, alt: 60000, heading: 0, pitch: -30, roll: 0, duration: 4, pause: 3, label: 'Bangkok, Thailand' },
-    { lon: 121.47, lat: 31.23, alt: 50000, heading: -45, pitch: -30, roll: 0, duration: 4, pause: 2, label: 'Shanghai, China' },
-    { lon: 139.69, lat: 35.69, alt: 40000, heading: 0, pitch: -45, roll: 0, duration: 3, pause: 2, label: 'Tokyo, Japan' },
-    { lon: 4.5, lat: 43.5, alt: 5000000, heading: 0, pitch: -90, roll: 0, duration: 5, pause: 2, label: 'Back to Europe' }
+    { lon: 6.8652, lat: 45.745, alt: 8000, heading: 0, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - South - Sentinel-2 cloud free mosaic - Last 7 days' },
 ])
 
 // Computed property for current step label
@@ -113,7 +109,7 @@ function buildXYZUrl(params) {
     }
 
     if (p.cloudCover !== null && p.cloudCover !== '') {
-        queryParams.push(`cloudCover=${p.cloudCover}`)
+        queryParams.push(`cloud_cover=${p.cloudCover}`)
     }
 
     if (p.additionalParams) {
@@ -267,10 +263,10 @@ function executeTourStep() {
 
             // Pause at the scene before moving to next step
             const pauseTime = (step.pause || 0) * 1000
-            
+
             setTimeout(() => {
                 if (isDestroyed) return
-                
+
                 currentTourStep.value++
 
                 // Loop back to start
