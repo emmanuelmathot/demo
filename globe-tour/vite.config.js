@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { viteStaticCopy } from 'vite-plugin-static-copy'
+import { resolve } from 'path'
 
 export default defineConfig({
   base: process.env.VITE_BASE_URL || '/',
@@ -38,6 +39,10 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        tour: resolve(__dirname, 'tour.html'),
+      },
       output: {
         manualChunks: (id) => {
           if (id.includes('cesium')) return 'cesium'
