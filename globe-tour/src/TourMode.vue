@@ -2,6 +2,17 @@
     <div class="tour-container">
         <div ref="mapRef" class="map-fullscreen"></div>
 
+        <!-- Loading progress bar -->
+        <div v-if="isLoadingTiles" class="loading-overlay">
+            <div class="loading-container">
+                <div class="loading-text">Loading imagery...</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" :style="{ width: tileLoadProgress + '%' }"></div>
+                </div>
+                <div class="progress-text">{{ Math.round(tileLoadProgress) }}%</div>
+            </div>
+        </div>
+
         <!-- Tour info overlay -->
         <div class="tour-overlay">
             <div class="tour-info">
@@ -37,6 +48,8 @@ const defaultLayerParams = {
 // Core state
 const mapRef = ref(null)
 const currentTourStep = ref(0)
+const isLoadingTiles = ref(false)
+const tileLoadProgress = ref(0)
 
 // Cesium instances
 let cesiumViewer = null
@@ -47,6 +60,7 @@ let currentXyzLayer = null
 // Tour Script - customize your tour waypoints here
 // Each step can optionally include layer parameters to change the imagery
 // duration = fly-to animation time (seconds), pause = time to stay at scene (seconds)
+// waitForTiles = wait for all imagery tiles to load before continuing (default: false)
 const tourScript = ref([
     {
         lon: 4.5, lat: 43.5, alt: 5000000, heading: 0, pitch: -90, roll: 0,
@@ -55,10 +69,11 @@ const tourScript = ref([
         layer: { serviceId: '456c1e23-47f2-4567-98cf-dcde378a05f7', timeStart: today, timeEnd: today, cloudCover: 40 }
     },
     {
-        lon: 6.8652, lat: 45.7, alt: 40000, heading: 0, pitch: -60, roll: 0, duration: 4, pause: 3, label: 'Approaching Mont Blanc',
+        lon: 6.8652, lat: 45.7, alt: 40000, heading: 0, pitch: -60, roll: 0, duration: 4, pause: 0, label: 'Approaching Mont Blanc',
     },
     {
         lon: 6.8652, lat: 45.7, alt: 40000, heading: 0, pitch: -60, roll: 0, duration: 4, pause: 3, label: 'Approaching Mont Blanc',
+        waitForTiles: true,
         layer: { serviceId: '456c1e23-47f2-4567-98cf-dcde378a05f7', timeStart: daysAgo(7), timeEnd: today, cloudCover: 40 }
     },
     // Mont Blanc orbit - helicopter flight circling the summit (4808m)
@@ -237,6 +252,77 @@ function startTour() {
     executeTourStep()
 }
 
+// Wait for all tiles to be loaded
+function waitForTilesLoaded(timeout = 30000) {
+    return new Promise((resolve) => {
+        const startTime = Date.now()
+        isLoadingTiles.value = true
+        tileLoadProgress.value = 0
+
+        const checkTiles = () => {
+            if (isDestroyed) {
+                isLoadingTiles.value = false
+                resolve()
+                return
+            }
+
+            // Check if globe tiles are loaded
+            const globe = cesiumViewer.scene.globe
+            const tilesLoaded = globe.tilesLoaded
+
+            // Calculate progress based on time elapsed (as a fallback)
+            const elapsed = Date.now() - startTime
+            const timeProgress = Math.min((elapsed / timeout) * 100, 95)
+
+            // Check imagery layer loading progress
+            const imageryLayers = cesiumViewer.imageryLayers
+            let loadedLayers = 0
+            let totalLayers = 0
+            for (let i = 0; i < imageryLayers.length; i++) {
+                const layer = imageryLayers.get(i)
+                if (layer.imageryProvider) {
+                    totalLayers++
+                    if (layer.imageryProvider.ready !== false) {
+                        loadedLayers++
+                    }
+                }
+            }
+
+            // Combine globe and imagery progress
+            let progress = timeProgress
+            if (totalLayers > 0) {
+                const layerProgress = (loadedLayers / totalLayers) * 50
+                const globeProgress = tilesLoaded ? 50 : Math.min(timeProgress / 2, 45)
+                progress = Math.max(layerProgress + globeProgress, timeProgress)
+            }
+            
+            tileLoadProgress.value = Math.min(progress, 99)
+
+            const allImageryLoaded = totalLayers === 0 || loadedLayers === totalLayers
+
+            if (tilesLoaded && allImageryLoaded) {
+                tileLoadProgress.value = 100
+                // Give a small buffer for rendering
+                setTimeout(() => {
+                    isLoadingTiles.value = false
+                    resolve()
+                }, 200)
+            } else if (Date.now() - startTime > timeout) {
+                // Timeout - continue anyway
+                console.log('Tile loading timeout, continuing...')
+                tileLoadProgress.value = 100
+                isLoadingTiles.value = false
+                resolve()
+            } else {
+                // Check again in 100ms
+                setTimeout(checkTiles, 100)
+            }
+        }
+
+        checkTiles()
+    })
+}
+
 function executeTourStep() {
     if (isDestroyed || !cesiumViewer || !Cesium) return
 
@@ -258,8 +344,13 @@ function executeTourStep() {
         },
         duration: step.duration || 3,
         easingFunction: Cesium.EasingFunction.LINEAR_NONE,
-        complete: () => {
+        complete: async () => {
             if (isDestroyed) return
+
+            // Wait for tiles to load if requested
+            if (step.waitForTiles) {
+                await waitForTilesLoaded(step.tileTimeout || 30000)
+            }
 
             // Pause at the scene before moving to next step
             const pauseTime = (step.pause || 0) * 1000
@@ -300,6 +391,7 @@ onUnmounted(() => {
     height: 100vh;
     position: relative;
     overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
 .map-fullscreen {
@@ -336,6 +428,52 @@ onUnmounted(() => {
 .tour-step-counter {
     font-size: 12px;
     opacity: 0.7;
+}
+
+/* Loading progress bar */
+.loading-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1001;
+    pointer-events: none;
+}
+
+.loading-container {
+    background: rgba(0, 0, 0, 0.8);
+    padding: 20px 40px;
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    text-align: center;
+    min-width: 250px;
+}
+
+.loading-text {
+    color: white;
+    font-size: 14px;
+    margin-bottom: 12px;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+    border-radius: 3px;
+    transition: width 0.1s ease-out;
+}
+
+.progress-text {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 12px;
+    margin-top: 8px;
 }
 
 /* Hide Cesium credits for cleaner look */
