@@ -24,6 +24,31 @@
                 <span class="tour-step-counter">{{ currentTourStep + 1 }} / {{ tourScript.length }}</span>
             </div>
         </div>
+
+        <!-- Playback controls -->
+        <div class="playback-controls">
+            <button class="control-btn" @click="prevStep" title="Previous step">⏮</button>
+            <button class="control-btn" @click="togglePause" :title="isPaused ? 'Play' : 'Pause'">
+                {{ isPaused ? '▶' : '⏸' }}
+            </button>
+            <button class="control-btn" @click="nextStep" title="Next step">⏭</button>
+            <select class="section-jump" @change="jumpToSection($event.target.value)" :value="''">
+                <option value="" disabled>Jump to...</option>
+                <option value="0">Intro</option>
+                <option value="3">Mont Blanc</option>
+                <option value="12">Venice Lagoon</option>
+            </select>
+            <button class="control-btn debug-btn" @click="toggleDebug" :class="{ active: debugMode }" title="Debug mode">
+                🛠
+            </button>
+        </div>
+
+        <!-- Debug panel -->
+        <div v-if="debugMode" class="debug-panel">
+            <div class="debug-header">Camera Position (click to copy)</div>
+            <pre class="debug-code" @click="copyDebugInfo">{{ debugCameraInfo }}</pre>
+            <div class="debug-hint">{{ debugCopied ? 'Copied!' : 'Use mouse to navigate, click above to copy' }}</div>
+        </div>
     </div>
 </template>
 
@@ -54,10 +79,15 @@ const mapRef = ref(null)
 const currentTourStep = ref(0)
 const isLoadingTiles = ref(false)
 const tileLoadProgress = ref(0)
+const isPaused = ref(false)
+const debugMode = ref(false)
+const debugCopied = ref(false)
+const cameraPosition = ref({ lon: 0, lat: 0, alt: 0, heading: 0, pitch: 0, roll: 0 })
 
 // Cesium instances
 let cesiumViewer = null
 let Cesium = null
+let pauseTimeoutId = null
 let isDestroyed = false
 let currentXyzLayer = null
 
@@ -96,7 +126,92 @@ const tourScript = ref([
     { lon: 6.95, lat: 45.895, alt: 8000, heading: 225, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - Northeast - Sentinel-2 cloud free mosaic - Last 10 days' },
     { lon: 6.98, lat: 45.8326, alt: 8000, heading: 270, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - East - Sentinel-2 cloud free mosaic - Last 10 days' },
     { lon: 6.95, lat: 45.77, alt: 8000, heading: 315, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - Southeast - Sentinel-2 cloud free mosaic - Last 10 days' },
-    { lon: 6.8652, lat: 45.745, alt: 8000, heading: 0, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - South - Sentinel-2 cloud free mosaic - Last 10 days' },
+    { lon: 6.8652, lat: 45.745, alt: 8000, heading: 0, pitch: -17, roll: 0, duration: 5, pause: 3, label: 'Mont Blanc - Completing orbit' },
+    
+    // ========================================
+    // VENICE LAGOON - Cyanobacteria & NDCI Tour
+    // ========================================
+    
+    // Transition from Alps to Venice
+    {
+        lon: 12.3, lat: 45.27, alt: 200000, heading: 0, pitch: -90, roll: 0,
+        duration: 6, pause: 3,
+        label: 'Flying to Venice Lagoon - Monitoring Cyanobacteria',
+        sourceLabel: 'Copernicus Sentinel-2 - EOPF Explorer',
+        sourceLink: 'https://explorer.eopf.copernicus.eu/',
+        layer: { serviceId: '25107b35-eb1b-4171-8a54-b610a02b9c5c', timeStart: '2025-05-12', timeEnd: '2025-05-13' }
+    },
+    
+    // Venice Lagoon Overview - Natural Color
+    {
+        lon: 12.3, lat: 45.27, alt: 50000, heading: 0, pitch: -70, roll: 0,
+        duration: 4, pause: 5,
+        waitForTiles: true,
+        label: 'Venice Lagoon - Largest lagoon in the Mediterranean',
+    },
+    
+    // Closer look at algae accumulation
+    {
+        lon: 12.5, lat: 45.37, alt: 20000, heading: -17, pitch: -60, roll: 0,
+        duration: 4, pause: 5,
+        label: 'Visible algae blooms on the water surface',
+        layer: { serviceId: '453c1856-968a-4862-94cc-fe03da7d427a', timeStart: '2025-05-12', timeEnd: '2025-05-13' },
+        sourceLabel: 'Aquatic Plants and Algae Detector (APA)',
+    },
+    
+    // Transition to NDCI
+    {
+        lon: 12.5, lat: 45.37, alt: 20000, heading: -17, pitch: -60, roll: 0,
+        duration: 3, pause: 5,
+        label: 'NDCI - Normalised Difference Chlorophyll Index',
+        layer: { serviceId: '9551a434-c1a9-4600-bddb-d289f55c670e', timeStart: '2025-05-12', timeEnd: '2025-05-13' },
+        sourceLabel: 'NDCI Cyanobacteria Chlorophyll-a',
+    },
+    
+    // Northern Lagoon - Industrial influence
+    {
+        lon: 12.5081, lat: 45.5428, alt: 4812, heading: 262, pitch: -22, roll: 0,
+        duration: 4, pause: 4,
+        label: 'Northern Lagoon - Industrial influence zone (Marghera)',
+    },
+    
+    // Central Lagoon - Venice Historic
+    {
+        lon: 12.2459, lat: 45.4072, alt: 3622, heading: 75, pitch: -18, roll: 0, duration: 4, pause: 3,
+        label: 'Central Lagoon - Venice Historic Center',
+    },
+    
+    // Southern Lagoon - Chioggia
+    {
+        lon: 12.2975, lat: 45.1421, alt: 13612, heading: 360, pitch: -60, roll: 0,
+        label: 'Southern Lagoon - Chioggia fishing area',
+    },
+    
+    // Seasonal comparison - back to overview
+    {
+        lon: 12.3, lat: 45.27, alt: 50000, heading: 0, pitch: -70, roll: 0,
+        duration: 4, pause: 3,
+        label: 'Spring 2025 - Cyanobacteria awakening',
+    },
+    
+    // Summer peak
+    {
+        lon: 12.3, lat: 45.27, alt: 50000, heading: 0, pitch: -70, roll: 0,
+        duration: 1, pause: 5,
+        waitForTiles: true,
+        label: 'Summer 2025 - Peak algal activity',
+        layer: { serviceId: '9551a434-c1a9-4600-bddb-d289f55c670e', timeStart: '2025-07-26', timeEnd: '2025-07-27' },
+    },
+    
+    // Autumn decline
+    {
+        lon: 12.3, lat: 45.27, alt: 50000, heading: 0, pitch: -70, roll: 0,
+        duration: 1, pause: 5,
+        waitForTiles: true,
+        label: 'Autumn 2025 - Natural decline',
+        layer: { serviceId: '9551a434-c1a9-4600-bddb-d289f55c670e', timeStart: '2025-10-24', timeEnd: '2025-10-25' },
+    },
+
 ])
 
 // Computed property for current step label
@@ -390,8 +505,16 @@ function executeTourStep() {
             // Pause at the scene before moving to next step
             const pauseTime = (step.pause || 0) * 1000
 
-            setTimeout(() => {
-                if (isDestroyed) return
+            // Clear any existing timeout
+            if (pauseTimeoutId) {
+                clearTimeout(pauseTimeoutId)
+            }
+
+            // Don't auto-advance if paused
+            if (isPaused.value) return
+
+            pauseTimeoutId = setTimeout(() => {
+                if (isDestroyed || isPaused.value) return
 
                 currentTourStep.value++
 
@@ -407,6 +530,111 @@ function executeTourStep() {
     })
 }
 
+// Playback controls
+function togglePause() {
+    isPaused.value = !isPaused.value
+    if (!isPaused.value) {
+        // Resume - continue from current step
+        executeTourStep()
+    } else if (pauseTimeoutId) {
+        clearTimeout(pauseTimeoutId)
+    }
+}
+
+function prevStep() {
+    if (pauseTimeoutId) clearTimeout(pauseTimeoutId)
+    isPaused.value = true
+    currentTourStep.value = currentTourStep.value > 0 
+        ? currentTourStep.value - 1 
+        : tourScript.value.length - 1
+    executeTourStep()
+}
+
+function nextStep() {
+    if (pauseTimeoutId) clearTimeout(pauseTimeoutId)
+    isPaused.value = true
+    currentTourStep.value = currentTourStep.value < tourScript.value.length - 1 
+        ? currentTourStep.value + 1 
+        : 0
+    executeTourStep()
+}
+
+function jumpToSection(stepIndex) {
+    if (pauseTimeoutId) clearTimeout(pauseTimeoutId)
+    isPaused.value = true
+    currentTourStep.value = parseInt(stepIndex, 10)
+    executeTourStep()
+}
+
+// Debug camera info computed property
+const debugCameraInfo = computed(() => {
+    const p = cameraPosition.value
+    return `{ lon: ${p.lon.toFixed(4)}, lat: ${p.lat.toFixed(4)}, alt: ${Math.round(p.alt)}, heading: ${Math.round(p.heading)}, pitch: ${Math.round(p.pitch)}, roll: ${Math.round(p.roll)}, duration: 4, pause: 3 }`
+})
+
+// Debug mode functions
+let cameraChangeHandler = null
+
+function toggleDebug() {
+    debugMode.value = !debugMode.value
+    
+    if (!cesiumViewer || !Cesium) return
+    
+    const controller = cesiumViewer.scene.screenSpaceCameraController
+    
+    if (debugMode.value) {
+        // Enable camera controls
+        controller.enableRotate = true
+        controller.enableZoom = true
+        controller.enablePan = true
+        controller.enableTilt = true
+        controller.enableLook = true
+        
+        // Pause tour
+        isPaused.value = true
+        if (pauseTimeoutId) clearTimeout(pauseTimeoutId)
+        
+        // Start tracking camera position
+        updateCameraPosition()
+        cameraChangeHandler = cesiumViewer.camera.changed.addEventListener(updateCameraPosition)
+    } else {
+        // Disable camera controls
+        controller.enableRotate = false
+        controller.enableZoom = false
+        controller.enablePan = false
+        controller.enableTilt = false
+        controller.enableLook = false
+        
+        // Stop tracking
+        if (cameraChangeHandler) {
+            cameraChangeHandler()
+            cameraChangeHandler = null
+        }
+    }
+}
+
+function updateCameraPosition() {
+    if (!cesiumViewer || !Cesium) return
+    
+    const camera = cesiumViewer.camera
+    const cartographic = Cesium.Cartographic.fromCartesian(camera.position)
+    
+    cameraPosition.value = {
+        lon: Cesium.Math.toDegrees(cartographic.longitude),
+        lat: Cesium.Math.toDegrees(cartographic.latitude),
+        alt: cartographic.height,
+        heading: Cesium.Math.toDegrees(camera.heading),
+        pitch: Cesium.Math.toDegrees(camera.pitch),
+        roll: Cesium.Math.toDegrees(camera.roll)
+    }
+}
+
+function copyDebugInfo() {
+    navigator.clipboard.writeText(debugCameraInfo.value)
+    debugCopied.value = true
+    setTimeout(() => { debugCopied.value = false }, 2000)
+}
+
 // Lifecycle
 onMounted(async () => {
     await initializeMap()
@@ -414,6 +642,8 @@ onMounted(async () => {
 
 onUnmounted(() => {
     isDestroyed = true
+    if (pauseTimeoutId) clearTimeout(pauseTimeoutId)
+    if (cameraChangeHandler) cameraChangeHandler()
     if (cesiumViewer) {
         cesiumViewer.destroy()
     }
@@ -530,5 +760,105 @@ onUnmounted(() => {
 /* Hide Cesium credits for cleaner look */
 :deep(.cesium-viewer-bottom) {
     display: none !important;
+}
+
+/* Playback controls */
+.playback-controls {
+    position: absolute;
+    bottom: 130px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.6);
+    padding: 8px 12px;
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+}
+
+.control-btn {
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.control-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.section-jump {
+    height: 32px;
+    padding: 0 10px;
+    border: none;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+    font-size: 13px;
+    cursor: pointer;
+    margin-left: 8px;
+}
+
+.section-jump option {
+    background: #222;
+    color: white;
+}
+
+.debug-btn.active {
+    background: rgba(76, 175, 80, 0.6);
+}
+
+/* Debug panel */
+.debug-panel {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    background: rgba(0, 0, 0, 0.85);
+    padding: 12px 16px;
+    border-radius: 8px;
+    backdrop-filter: blur(10px);
+    max-width: 500px;
+    font-family: monospace;
+}
+
+.debug-header {
+    color: #4facfe;
+    font-size: 12px;
+    margin-bottom: 8px;
+    font-weight: bold;
+}
+
+.debug-code {
+    color: #90EE90;
+    font-size: 11px;
+    margin: 0;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    cursor: pointer;
+    user-select: all;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.debug-code:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.debug-hint {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 10px;
+    margin-top: 8px;
 }
 </style>
