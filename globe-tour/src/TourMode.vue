@@ -99,33 +99,33 @@ let currentXyzLayer = null
 const tourScript = ref([
     {
         lon: 4.5, lat: 43.5, alt: 5000000, heading: 0, pitch: -90, roll: 0,
-        duration: 3, pause: 2,
+        duration: 3, pause: 0,
         label: 'Welcome to Globe Tour',
         sourceLabel: 'Copernicus data - EOPF Sentinels Explorer', 
         sourceLink: 'https://explorer.eopf.copernicus.eu/',
         layer: { serviceId: '456c1e23-47f2-4567-98cf-dcde378a05f7', timeStart: today, timeEnd: today, cloudCover: 40 }
     },
     {
-        lon: 6.8652, lat: 45.7, alt: 40000, heading: 0, pitch: -60, roll: 0, duration: 4, pause: 0, label: 'Approaching Mont Blanc',
+        lon: 6.8652, lat: 45.7, alt: 40000, heading: 0, pitch: -60, roll: 0, duration: 1, pause: 0, label: 'Approaching Mont Blanc',
     },
     {
         lon: 6.8652, lat: 45.7, alt: 40000, heading: 0, pitch: -60, roll: 0, duration: 4, pause: 3, label: 'Approaching Mont Blanc',
         sourceLabel: "Copernicus data - EOPF Sentinels Explorer", sourceLink: "https://explorer.eopf.copernicus.eu/",
         waitForTiles: true,
-        layer: { serviceId: '456c1e23-47f2-4567-98cf-dcde378a05f7', timeStart: daysAgo(10), timeEnd: today, cloudCover: 40 }
+        layer: { serviceId: '456c1e23-47f2-4567-98cf-dcde378a05f7', timeStart: daysAgo(28), timeEnd: today, cloudCover: 40 }
     },
     // Mont Blanc orbit - helicopter flight circling the summit (4808m)
     // Summit coords: 6.8652°E, 45.8326°N - orbiting at ~10km distance, ~8000m altitude
     {
-        lon: 6.8652, lat: 45.745, alt: 8000, heading: 0, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - South - Sentinel-2 cloud free mosaic - Last 10 days',
+        lon: 6.8652, lat: 45.745, alt: 8000, heading: 0, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - South - Sentinel-2 cloud free mosaic - Last 28 days',
     },
-    { lon: 6.78, lat: 45.77, alt: 8000, heading: 45, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - Southwest - Sentinel-2 cloud free mosaic - Last 10 days' },
-    { lon: 6.75, lat: 45.8326, alt: 8000, heading: 90, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - West - Sentinel-2 cloud free mosaic - Last 10 days' },
-    { lon: 6.78, lat: 45.895, alt: 8000, heading: 135, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - Northwest - Sentinel-2 cloud free mosaic - Last 10 days' },
-    { lon: 6.8652, lat: 45.92, alt: 8000, heading: 180, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - North - Sentinel-2 cloud free mosaic - Last 10 days' },
-    { lon: 6.95, lat: 45.895, alt: 8000, heading: 225, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - Northeast - Sentinel-2 cloud free mosaic - Last 10 days' },
-    { lon: 6.98, lat: 45.8326, alt: 8000, heading: 270, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - East - Sentinel-2 cloud free mosaic - Last 10 days' },
-    { lon: 6.95, lat: 45.77, alt: 8000, heading: 315, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - Southeast - Sentinel-2 cloud free mosaic - Last 10 days' },
+    { lon: 6.78, lat: 45.77, alt: 8000, heading: 45, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - Southwest - Sentinel-2 cloud free mosaic - Last 28 days' },
+    { lon: 6.75, lat: 45.8326, alt: 8000, heading: 90, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - West - Sentinel-2 cloud free mosaic - Last 28 days' },
+    { lon: 6.78, lat: 45.895, alt: 8000, heading: 135, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - Northwest - Sentinel-2 cloud free mosaic - Last 28 days' },
+    { lon: 6.8652, lat: 45.92, alt: 8000, heading: 180, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - North - Sentinel-2 cloud free mosaic - Last 28 days' },
+    { lon: 6.95, lat: 45.895, alt: 8000, heading: 225, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - Northeast - Sentinel-2 cloud free mosaic - Last 28 days' },
+    { lon: 6.98, lat: 45.8326, alt: 8000, heading: 270, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - East - Sentinel-2 cloud free mosaic - Last 28 days' },
+    { lon: 6.95, lat: 45.77, alt: 8000, heading: 315, pitch: -17, roll: 0, duration: 5, pause: 0, label: 'Mont Blanc - Southeast - Sentinel-2 cloud free mosaic - Last 28 days' },
     { lon: 6.8652, lat: 45.745, alt: 8000, heading: 0, pitch: -17, roll: 0, duration: 5, pause: 3, label: 'Mont Blanc - Completing orbit' },
     
     // ========================================
@@ -396,71 +396,93 @@ function startTour() {
     executeTourStep()
 }
 
-// Wait for imagery layer tiles to be loaded using network activity monitoring
+// Wait for imagery layer tiles to be loaded using PerformanceObserver
 function waitForTilesLoaded(timeout = 30000) {
     return new Promise((resolve) => {
         const startTime = Date.now()
-        
-        let stableFrames = 0
-        const requiredStableFrames = 6
-        let lastResourceCount = 0
         
         // Show loading bar immediately
         isLoadingTiles.value = true
         tileLoadProgress.value = 0
         
-        // Get current count of resources loaded
-        const getResourceCount = () => {
-            try {
-                const entries = performance.getEntriesByType('resource')
-                // Count only XYZ tile requests
-                return entries.filter(e => e.name.includes('/tiles/')).length
-            } catch (e) {
-                return 0
+        let stableFrames = 0
+        const requiredStableFrames = 12
+        let lastTileLoadTime = Date.now()
+        let totalTilesLoaded = 0
+        let observer = null
+        let maxProgress = 0 // Track highest progress reached (never goes down)
+        
+        // Use PerformanceObserver to detect when tiles finish loading
+        try {
+            observer = new PerformanceObserver((list) => {
+                for (const entry of list.getEntries()) {
+                    if (entry.name.includes('/tiles/')) {
+                        lastTileLoadTime = Date.now()
+                        totalTilesLoaded++
+                    }
+                }
+            })
+            observer.observe({ entryTypes: ['resource'] })
+        } catch (e) {
+            console.warn('PerformanceObserver not available')
+        }
+        
+        const cleanup = () => {
+            if (observer) {
+                observer.disconnect()
+                observer = null
             }
         }
         
-        const initialResourceCount = getResourceCount()
-
         const checkTiles = () => {
-            if (isDestroyed) {
+            if (isDestroyed || !cesiumViewer) {
+                cleanup()
                 isLoadingTiles.value = false
                 resolve()
                 return
             }
 
             const elapsed = Date.now() - startTime
-            const currentResourceCount = getResourceCount()
-            const newResources = currentResourceCount - initialResourceCount
+            const timeSinceLastTile = Date.now() - lastTileLoadTime
+            const globe = cesiumViewer.scene.globe
             
-            // Resources stable if count hasn't changed since last check
-            const resourcesStable = currentResourceCount === lastResourceCount
+            // Globe terrain tiles loaded
+            const globeTilesLoaded = globe.tilesLoaded
             
-            console.log(`Tiles check: newResources=${newResources}, stable=${resourcesStable}, stableFrames=${stableFrames}, elapsed=${elapsed}ms`)
+            // Consider stable if no new tiles loaded in last 800ms and globe is ready
+            const isStable = globeTilesLoaded && timeSinceLastTile > 800
             
-            if (resourcesStable && elapsed > 300) {
+            console.log(`Tiles: globe=${globeTilesLoaded}, loaded=${totalTilesLoaded}, sinceLastTile=${timeSinceLastTile}ms, stableFrames=${stableFrames}`)
+            
+            if (isStable) {
                 stableFrames++
-            } else if (!resourcesStable) {
+            } else {
                 stableFrames = 0
             }
             
-            lastResourceCount = currentResourceCount
+            // Calculate progress based on stability frames (only increases, never decreases)
+            // Progress = base progress from stability + bonus from time elapsed
+            const stabilityProgress = (stableFrames / requiredStableFrames) * 100
+            const timeProgress = Math.min((elapsed / 5000) * 30, 30) // Max 30% from time
+            const tilesProgress = totalTilesLoaded > 0 ? Math.min(totalTilesLoaded * 2, 40) : 0 // Max 40% from tiles loaded
             
-            // Update progress bar
-            const progress = Math.min((stableFrames / requiredStableFrames) * 100, 99)
-            tileLoadProgress.value = Math.max(progress, Math.min((elapsed / 2000) * 80, 80))
+            const currentProgress = Math.min(timeProgress + tilesProgress + stabilityProgress * 0.3, 99)
+            maxProgress = Math.max(maxProgress, currentProgress)
+            tileLoadProgress.value = maxProgress
 
             // Done conditions
             if (stableFrames >= requiredStableFrames) {
-                console.log(`Imagery tiles loaded: ${newResources} tiles in ${elapsed}ms`)
+                console.log(`Imagery tiles loaded in ${elapsed}ms (${totalTilesLoaded} tiles)`)
                 tileLoadProgress.value = 100
+                cleanup()
                 setTimeout(() => {
                     isLoadingTiles.value = false
                     resolve()
-                }, 100)
+                }, 200)
             } else if (elapsed > timeout) {
                 console.log('Tile loading timeout, continuing...')
                 tileLoadProgress.value = 100
+                cleanup()
                 isLoadingTiles.value = false
                 resolve()
             } else {
@@ -468,8 +490,8 @@ function waitForTilesLoaded(timeout = 30000) {
             }
         }
 
-        // Start checking after brief delay
-        setTimeout(checkTiles, 100)
+        // Wait for initial tile requests to start
+        setTimeout(checkTiles, 300)
     })
 }
 
