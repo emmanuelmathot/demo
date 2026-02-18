@@ -138,7 +138,7 @@ const tourScript = ref([
         duration: 6, pause: 3,
         label: 'Flying to Venice Lagoon - Monitoring Cyanobacteria',
         sourceLabel: 'Copernicus Sentinel-2 - EOPF Explorer',
-        sourceLink: 'https://explorer.eopf.copernicus.eu/',
+        sourceLink: 'https://explorer.eopf.copernicus.eu/story/?id=ndci',
         layer: { serviceId: '25107b35-eb1b-4171-8a54-b610a02b9c5c', timeStart: '2025-05-12', timeEnd: '2025-05-13' }
     },
     
