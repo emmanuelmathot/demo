@@ -396,102 +396,38 @@ function startTour() {
     executeTourStep()
 }
 
-// Wait for imagery layer tiles to be loaded using PerformanceObserver
+// Wait for imagery layer tiles to be loaded - simple approach: wait fixed time with progress
 function waitForTilesLoaded(timeout = 30000) {
     return new Promise((resolve) => {
+        const waitTime = 2000 // Fixed 2 second wait
         const startTime = Date.now()
         
-        // Show loading bar immediately
         isLoadingTiles.value = true
         tileLoadProgress.value = 0
         
-        let stableFrames = 0
-        const requiredStableFrames = 12
-        let lastTileLoadTime = Date.now()
-        let totalTilesLoaded = 0
-        let observer = null
-        let maxProgress = 0 // Track highest progress reached (never goes down)
-        
-        // Use PerformanceObserver to detect when tiles finish loading
-        try {
-            observer = new PerformanceObserver((list) => {
-                for (const entry of list.getEntries()) {
-                    if (entry.name.includes('/tiles/')) {
-                        lastTileLoadTime = Date.now()
-                        totalTilesLoaded++
-                    }
-                }
-            })
-            observer.observe({ entryTypes: ['resource'] })
-        } catch (e) {
-            console.warn('PerformanceObserver not available')
-        }
-        
-        const cleanup = () => {
-            if (observer) {
-                observer.disconnect()
-                observer = null
-            }
-        }
-        
-        const checkTiles = () => {
-            if (isDestroyed || !cesiumViewer) {
-                cleanup()
+        const updateProgress = () => {
+            if (isDestroyed) {
                 isLoadingTiles.value = false
                 resolve()
                 return
             }
-
+            
             const elapsed = Date.now() - startTime
-            const timeSinceLastTile = Date.now() - lastTileLoadTime
-            const globe = cesiumViewer.scene.globe
+            const progress = Math.min((elapsed / waitTime) * 100, 100)
+            tileLoadProgress.value = progress
             
-            // Globe terrain tiles loaded
-            const globeTilesLoaded = globe.tilesLoaded
-            
-            // Consider stable if no new tiles loaded in last 800ms and globe is ready
-            const isStable = globeTilesLoaded && timeSinceLastTile > 800
-            
-            console.log(`Tiles: globe=${globeTilesLoaded}, loaded=${totalTilesLoaded}, sinceLastTile=${timeSinceLastTile}ms, stableFrames=${stableFrames}`)
-            
-            if (isStable) {
-                stableFrames++
-            } else {
-                stableFrames = 0
-            }
-            
-            // Calculate progress based on stability frames (only increases, never decreases)
-            // Progress = base progress from stability + bonus from time elapsed
-            const stabilityProgress = (stableFrames / requiredStableFrames) * 100
-            const timeProgress = Math.min((elapsed / 5000) * 30, 30) // Max 30% from time
-            const tilesProgress = totalTilesLoaded > 0 ? Math.min(totalTilesLoaded * 2, 40) : 0 // Max 40% from tiles loaded
-            
-            const currentProgress = Math.min(timeProgress + tilesProgress + stabilityProgress * 0.3, 99)
-            maxProgress = Math.max(maxProgress, currentProgress)
-            tileLoadProgress.value = maxProgress
-
-            // Done conditions
-            if (stableFrames >= requiredStableFrames) {
-                console.log(`Imagery tiles loaded in ${elapsed}ms (${totalTilesLoaded} tiles)`)
+            if (elapsed >= waitTime) {
                 tileLoadProgress.value = 100
-                cleanup()
                 setTimeout(() => {
                     isLoadingTiles.value = false
                     resolve()
-                }, 200)
-            } else if (elapsed > timeout) {
-                console.log('Tile loading timeout, continuing...')
-                tileLoadProgress.value = 100
-                cleanup()
-                isLoadingTiles.value = false
-                resolve()
+                }, 50)
             } else {
-                setTimeout(checkTiles, 100)
+                requestAnimationFrame(updateProgress)
             }
         }
-
-        // Wait for initial tile requests to start
-        setTimeout(checkTiles, 300)
+        
+        requestAnimationFrame(updateProgress)
     })
 }
 
